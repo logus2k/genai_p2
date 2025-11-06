@@ -19,6 +19,14 @@ It supports:
 - PyTorch (CUDA recommended)
 - `transformers`, `datasets`, `accelerate`, `scikit-learn`, `pandas`, `numpy`, `peft`
 
+## Setup
+
+[Longformer Base 4096] (https://huggingface.co/allenai/longformer-base-4096)
+
+[Arxiv dataset] (https://huggingface.co/datasets/nick007x/arxiv-papers)
+
+[Direct link to Arxiv dataset .parquet file (metadata that includes the abstract] (https://huggingface.co/datasets/nick007x/arxiv-papers/resolve/main/train.parquet)
+
 ```bash
 pip install torch transformers datasets accelerate scikit-learn pandas numpy peft
 ```
