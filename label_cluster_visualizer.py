@@ -93,7 +93,8 @@ class LabelClusterVisualizer:
 			out = self._model(**enc)
 
 		hidden = out.last_hidden_state  # [B, L, H]
-		# CLS pooling (token 0). For RoBERTa/Longformer-style models, this is common.
+		# CLS pooling (token 0):
+		# For RoBERTa/Longformer-style models, this is common
 		embeddings = hidden[:, 0, :].detach().cpu().numpy()
 		return embeddings
 
@@ -121,12 +122,21 @@ class LabelClusterVisualizer:
 
 		Returns:
 			coords: np.ndarray [num_labels, 2]
+
+		NOTES:
+			Perplexity represents the effective number of neighbors each point considers 
+			when calculating pairwise similarities in the high-dimensional space.
+		
+			In the context of t-SNE (t-distributed Stochastic Neighbor Embedding),
+			perplexity is a crucial hyperparameter that essentially controls the balance
+			between preserving local vs. global structure in the data during dimensionality reduction.
 		"""
 		if embeddings.ndim != 2:
 			raise ValueError(f"project_to_2d: expected 2D embeddings, got shape {embeddings.shape}")
 
 		num_points = embeddings.shape[0]
-		# Perplexity must be < num_points; pick something reasonable
+		# Perplexity must be < num_points
+		# A reasonable value must be selected
 		perplexity = min(30, max(5, num_points // 5))
 
 		tsne = TSNE(
