@@ -13,3 +13,5 @@ results_*
 model_comparison.txt
 classification_results.txt
 best_*
+*.pkl
+enhanced_classification_results.*
