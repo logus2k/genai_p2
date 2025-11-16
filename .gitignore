@@ -4,9 +4,14 @@ lib/
 lib64
 bin/
 share/
-data/
+etc/
 include/
+pyvenv.cfg
+data/
 models/
 results_*
 model_comparison.txt
-pyvenv.cfg
+classification_results.txt
+best_*
+*.pkl
+enhanced_classification_results.*
