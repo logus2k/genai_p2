@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Model Prediction Explorer</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .controls input, .controls button {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .controls button {
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        .controls button:hover {
+            background: #0056b3;
+        }
+        .sample-info {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #eee;
+            border-radius: 4px;
+            background: #f9f9f9;
+        }
+        .predictions {
+            margin: 20px 0;
+        }
+        .prediction-item {
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #eee;
+            border-radius: 4px;
+        }
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+        .error {
+            color: #d32f2f;
+            background: #ffebee;
+            padding: 10px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Model Prediction Explorer</h1>
+        
+        <div class="controls">
+            <label>Sample Index:</label>
+            <input type="number" id="sampleIndex" min="0" value="0">
+            <button onclick="loadSample()">Load Sample</button>
+            <button onclick="loadRandomSample()">Random Sample</button>
+            <button onclick="predictCurrent()">Get Prediction</button>
+            <span id="datasetInfo"></span>
+        </div>
+        
+        <div id="loading" class="loading" style="display: none;">Loading...</div>
+        <div id="error" class="error" style="display: none;"></div>
+        
+        <div id="sampleInfo" class="sample-info" style="display: none;">
+            <h3>Sample Information</h3>
+            <p><strong>Index:</strong> <span id="sampleIndexDisplay"></span></p>
+            <p><strong>Actual Label:</strong> <span id="actualLabel"></span></p>
+            <p><strong>Text Preview:</strong></p>
+            <div id="textPreview" style="white-space: pre-wrap; max-height: 200px; overflow-y: auto; background: white; padding: 10px; border: 1px solid #ddd;"></div>
+        </div>
+        
+        <div id="predictions" class="predictions" style="display: none;">
+            <h3>Predictions</h3>
+            <div id="predictionList"></div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        
+        let totalSamples = 0;
+        
+        // Socket event listeners
+        socket.on('connect', function() {
+            console.log('Connected to server');
+            getDatasetInfo();
+        });
+        
+        socket.on('disconnect', function() {
+            console.log('Disconnected from server');
+        });
+        
+        socket.on('sample_data', function(data) {
+            hideLoading();
+            hideError();
+            displaySample(data);
+        });
+        
+        socket.on('prediction_result', function(data) {
+            hideLoading();
+            hideError();
+            displayPredictions(data);
+        });
+        
+        socket.on('dataset_info', function(data) {
+            totalSamples = data.total_samples;
+            document.getElementById('datasetInfo').textContent = 
+                `Total samples: ${totalSamples} | Columns: ${data.columns.join(', ')}`;
+        });
+        
+        socket.on('error', function(data) {
+            hideLoading();
+            showError(data.message);
+        });
+        
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+        }
+        
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+        
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+        
+        function hideError() {
+            document.getElementById('error').style.display = 'none';
+        }
+        
+        function displaySample(data) {
+            document.getElementById('sampleIndexDisplay').textContent = data.index;
+            document.getElementById('actualLabel').textContent = data.actual_label;
+            document.getElementById('textPreview').textContent = data.text.substring(0, 500) + '...';
+            document.getElementById('sampleInfo').style.display = 'block';
+        }
+        
+        function displayPredictions(data) {
+            const predictionList = document.getElementById('predictionList');
+            predictionList.innerHTML = '';
+            
+            data.predictions.forEach((pred, index) => {
+                const predItem = document.createElement('div');
+                predItem.className = 'prediction-item';
+                predItem.innerHTML = `
+                    <strong>${index + 1}. [${pred.domain}] ${pred.category}</strong>: 
+                    <span style="color: #007bff">${pred.confidence.toFixed(4)}</span>
+                `;
+                predictionList.appendChild(predItem);
+            });
+            
+            document.getElementById('predictions').style.display = 'block';
+        }
+        
+        function loadSample() {
+            const index = parseInt(document.getElementById('sampleIndex').value);
+            if (isNaN(index) || index < 0) {
+                showError('Please enter a valid index (0 or positive number)');
+                return;
+            }
+            
+            showLoading();
+            socket.emit('get_sample', { index: index });
+        }
+        
+        function loadRandomSample() {
+            const randomIndex = Math.floor(Math.random() * totalSamples);
+            document.getElementById('sampleIndex').value = randomIndex;
+            loadSample();
+        }
+        
+        function predictCurrent() {
+            const index = parseInt(document.getElementById('sampleIndex').value);
+            if (isNaN(index) || index < 0) {
+                showError('Please enter a valid index (0 or positive number)');
+                return;
+            }
+            
+            showLoading();
+            socket.emit('predict_sample', { index: index });
+        }
+        
+        function getDatasetInfo() {
+            socket.emit('get_dataset_info', {});
+        }
+        
+        // Load first sample on page load
+        window.onload = function() {
+            loadSample();
+        };
+    </script>
+</body>
+</html>
