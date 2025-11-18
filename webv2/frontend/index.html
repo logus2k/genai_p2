@@ -225,6 +225,11 @@ class FrontendApp {
 
 	loadRandomSample() {
 		const idx = Math.floor(Math.random() * this.totalSamples);
+
+
+        console.log("Total Samples: " + this.totalSamples);
+        console.log("Random value: " + idx);
+
 		document.getElementById("sampleIndex").value = idx;
 		this.loadSample();
 	}
@@ -257,8 +262,10 @@ class FrontendApp {
 }
 
 window.onload = () => {
-	new FrontendApp().loadSample();
+	window.app = new FrontendApp();
+    app.loadSample();
 };
+
 </script>
 
 </body>

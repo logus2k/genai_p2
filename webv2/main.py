@@ -59,6 +59,16 @@ class WebServer:
                 "domain_colors": result["domain_colors"]
             }, room=sid)
 
+        @self.sio.event
+        async def get_dataset_info(sid, data):
+
+            print(len(self.df))
+
+            info = {
+                "total_samples": len(self.df),
+                "columns": list(self.df.columns)
+            }
+            await self.sio.emit("dataset_info", info, room=sid)
 
 
 if __name__ == "__main__":
