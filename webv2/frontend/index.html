@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Model Prediction Explorer</title>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "/scipredictor/static/three.module.min.js",
+            "three/addons/": "/scipredictor/static/"
+        }
+    }
+    </script>
+    
+    <script type="module" src="/scipredictor/static/render3d.js"></script>
+
+    <script src="/scipredictor/static/socket.io.min.js"></script>
+
+	<style>
+		body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f5f5f5; }
+		.page-wrapper { display:flex; flex-direction:row; height:100vh; overflow:hidden; }
+		.left-pane { flex:none; width:45%; min-width:320px; max-width:80%; overflow-y:auto; padding:20px; background:#f5f5f5; box-shadow:2px 0 6px rgba(0,0,0,0.1); }
+		.right-pane { flex:1; background:#000; overflow:hidden; position:relative; }
+		#pdfViewer { width:100%; height:100%; border:none; display:none; }
+		.container { background:white; padding:20px; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,0.1); }
+		.controls { margin-bottom:20px; display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+		.controls input, .controls button { padding:8px 12px; border:1px solid #ddd; border-radius:4px; }
+		.controls button { background:#007bff; color:white; cursor:pointer; }
+		.controls button:hover { background:#0056b3; }
+		.sample-info { margin:20px 0; padding:15px; border:1px solid #eee; border-radius:4px; background:#f9f9f9; }
+		.prediction-item { padding:10px; margin:5px 0; border:1px solid #eee; border-radius:4px; }
+		.error { color:#d32f2f; background:#ffebee; padding:10px; border-radius:4px; display:none; }
+		.loading { color:#666; font-style:italic; display:none; }
+	</style>
+</head>
+
+<body>
+
+<div class="page-wrapper">
+
+	<div id="leftPane" class="left-pane">
+		<div class="container">
+			<h1>Model Prediction Explorer</h1>
+
+			<div class="controls">
+				<label>Sample Index:</label>
+				<input type="number" id="sampleIndex" min="0" value="0">
+				<button id="btnSearch">Search</button>
+				<button id="btnRandom">Random</button>
+				<span id="datasetInfo"></span>
+			</div>
+
+			<div id="loading" class="loading">Loading...</div>
+			<div id="error" class="error"></div>
+
+			<div id="sampleInfo" class="sample-info" style="display:none;">
+				<!-- <h3>Sample Information</h3> -->
+				<p><strong>Index:</strong> <span id="sampleIndexDisplay"></span></p>
+				<p><strong>Actual Label:</strong> <span id="actualLabel"></span></p>
+				<p><strong>Text Preview:</strong></p>
+				<div id="textPreview" style="white-space:pre-wrap; max-height:200px; overflow-y:auto; background:white; padding:10px; border:1px solid #ddd;"></div>
+			</div>
+
+			<div id="predictions" style="display:none;">
+				<h3>Predictions</h3>
+				<div id="predictionList"></div>
+			</div>
+
+			<!-- <h3>Embedding Visualization</h3> -->
+			<div id="embeddingVisContainer" style="height:300px; background:white; border:1px solid #ddd; border-radius:4px;"></div>
+		</div>
+	</div>
+
+	<div class="right-pane">
+		<iframe id="pdfViewer"></iframe>
+	</div>
+
+</div>
+
+<script>
+class FrontendApp {
+	constructor() {
+		this.socket = io("/", { path: "/scipredictor/socket.io/" });
+		this.totalSamples = 0;
+		this._bindEvents();
+		this._bindSocket();
+	}
+
+	_bindEvents() {
+		document.getElementById("btnSearch").onclick = () => this.loadSample();
+		document.getElementById("btnRandom").onclick = () => this.loadRandomSample();
+	}
+
+	_bindSocket() {
+		this.socket.on("connect", () => this.getDatasetInfo());
+
+		this.socket.on("dataset_info", data => {
+			this.totalSamples = data.total_samples;
+			document.getElementById("datasetInfo").textContent =
+				`Total samples: ${data.total_samples} | Columns: ${data.columns.join(", ")}`;
+		});
+
+		this.socket.on("sample", data => {
+			this._displaySample(data);
+			document.getElementById("loading").style.display = "none";
+			document.getElementById("error").style.display = "none";
+			this.socket.emit("predict_sample", { index: data.index });
+
+			if (data.pdf_url) {
+				const iframe = document.getElementById("pdfViewer");
+				iframe.src = data.pdf_url + "#zoom=page-fit";
+				iframe.style.display = "block";
+			}
+		});
+
+		this.socket.on("prediction_result", data => {
+			this._displayPredictions(data);
+			renderEmbeddingGraph(data);
+		});
+
+		this.socket.on("error", data => {
+			document.getElementById("error").textContent = data.message;
+			document.getElementById("error").style.display = "block";
+		});
+	}
+
+	loadSample() {
+		const index = parseInt(document.getElementById("sampleIndex").value);
+		if (isNaN(index) || index < 0) {
+			document.getElementById("error").textContent = "Invalid index";
+			document.getElementById("error").style.display = "block";
+			return;
+		}
+		document.getElementById("loading").style.display = "block";
+		this.socket.emit("get_sample", { index });
+	}
+
+	loadRandomSample() {
+		const idx = Math.floor(Math.random() * this.totalSamples);
+		document.getElementById("sampleIndex").value = idx;
+		this.loadSample();
+	}
+
+	getDatasetInfo() {
+		this.socket.emit("get_dataset_info", {});
+	}
+
+	_displaySample(data) {
+		document.getElementById("sampleIndexDisplay").textContent = data.index;
+		document.getElementById("actualLabel").textContent = data.actual_label;
+		document.getElementById("textPreview").textContent = data.text.substring(0, 500) + "...";
+		document.getElementById("sampleInfo").style.display = "block";
+	}
+
+	_displayPredictions(data) {
+		const list = document.getElementById("predictionList");
+		list.innerHTML = "";
+		data.predictions.forEach((p, i) => {
+			const div = document.createElement("div");
+			div.className = "prediction-item";
+			div.innerHTML = `<strong>${i + 1}. [${p.domain}] ${p.category}</strong>:
+				<span style="color:#007bff">${p.confidence.toFixed(4)}</span>`;
+			list.appendChild(div);
+		});
+		document.getElementById("predictions").style.display = "block";
+	}
+}
+
+window.onload = () => {
+	new FrontendApp().loadSample();
+};
+</script>
+
+</body>
+</html>
