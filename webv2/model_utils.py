@@ -11,6 +11,7 @@ CONFIG = {
     "DROPOUT_RATE": 0.3
 }
 
+
 class EnhancedClassifier(nn.Module):
     def __init__(self, model_name, num_classes, dropout_rate=0.3):
         super().__init__()
@@ -28,6 +29,7 @@ class EnhancedClassifier(nn.Module):
             attention_mask=attention_mask,
             output_hidden_states=True
         )
+
         if hasattr(outputs, "pooler_output") and outputs.pooler_output is not None:
             hidden = outputs.pooler_output
         else:
@@ -54,11 +56,11 @@ def subject_to_domain(category: str) -> str:
 
 def arxiv_pdf_link_from_doi(doi: str):
     arxiv_id = doi.split("arXiv.")[-1]
-    pdf_link = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
-    return arxiv_id, pdf_link
+    return arxiv_id, f"https://arxiv.org/pdf/{arxiv_id}.pdf"
 
 
 class ModelPredictor:
+
     def __init__(self, model_path: str):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.label_encoder, self.categories = self._load_label_encoder()
@@ -83,65 +85,67 @@ class ModelPredictor:
         self.encoder = LabelEncoder()
         self.encoder.fit(self.categories)
 
+        self.category_embeddings = self._compute_category_embeddings()
+
     def _load_label_encoder(self):
         with open("../scibert_label_encoder.pkl", "rb") as f:
-            encoder = pickle.load(f)
-        return encoder, encoder.classes_
+            enc = pickle.load(f)
+        return enc, enc.classes_
 
     def _embed_text(self, text: str):
-        encoding = self.tokenizer(
+        enc = self.tokenizer(
             text,
             truncation=True,
             padding="max_length",
             max_length=CONFIG["MAX_LENGTH"],
             return_tensors="pt",
         )
-        input_ids = encoding["input_ids"].to(self.device)
-        attention_mask = encoding["attention_mask"].to(self.device)
+        ids = enc["input_ids"].to(self.device)
+        mask = enc["attention_mask"].to(self.device)
 
         with torch.no_grad():
-            emb = self.model(input_ids, attention_mask, return_embeddings=True)
+            emb = self.model(ids, mask, return_embeddings=True)
         return emb[0].cpu().numpy()
-    
-    def get_all_category_embeddings(self):
+
+    def _compute_category_embeddings(self):
         emb_map = {}
         for cat in self.categories:
             emb_map[cat] = self._embed_text(cat).tolist()
-        return emb_map    
+        return emb_map
 
     def predict_with_embeddings(self, text: str, top_k: int = 5):
-        encoding = self.tokenizer(
+        enc = self.tokenizer(
             text,
             truncation=True,
             padding="max_length",
             max_length=CONFIG["MAX_LENGTH"],
             return_tensors="pt",
         )
-        input_ids = encoding["input_ids"].to(self.device)
-        attention_mask = encoding["attention_mask"].to(self.device)
+        ids = enc["input_ids"].to(self.device)
+        mask = enc["attention_mask"].to(self.device)
 
         with torch.no_grad():
-            logits = self.model(input_ids, attention_mask)
-            sample_emb = self.model(input_ids, attention_mask, return_embeddings=True)
+            logits = self.model(ids, mask)
+            sample_emb = self.model(ids, mask, return_embeddings=True)
             probs = F.softmax(logits, dim=-1)
 
         top_probs, top_idx = torch.topk(probs[0], top_k)
+        preds = []
 
-        predictions = []
         sample_vec = sample_emb[0].cpu().numpy().tolist()
 
         for prob, idx in zip(top_probs, top_idx):
             label = self.encoder.inverse_transform([idx.item()])[0]
-            predictions.append({
+            preds.append({
                 "category": label,
                 "domain": subject_to_domain(label),
                 "confidence": float(prob.item())
             })
 
         return {
-            "predictions": predictions,
+            "predictions": preds,
             "sample_embedding": sample_vec,
-            "category_embeddings": self.get_all_category_embeddings()
+            "category_embeddings": self.category_embeddings
         }
 
     def get_sample_by_index(self, df, index):

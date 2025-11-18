@@ -67,7 +67,7 @@ class WebServer:
                 "predictions": result["predictions"],
                 "actual_label": sample["actual_label"],
                 "sample_embedding": result["sample_embedding"],
-                "prediction_embeddings": result["prediction_embeddings"]
+                "category_embeddings": result["category_embeddings"]   # <-- updated
             }
 
             await self.sio.emit("prediction_result", payload, room=sid)
