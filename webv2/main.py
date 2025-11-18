@@ -53,6 +53,7 @@ class WebServer:
             # 2) t-SNE + embedding points
             await self.sio.emit("tsne_result", {
                 "index": index,
+                "actual_label": sample["actual_label"],
                 "predictions": result["predictions"],
                 "sample_tsne_pos": result["sample_tsne_pos"],
                 "all_categories_tsne": result["all_categories_tsne"],
@@ -61,8 +62,6 @@ class WebServer:
 
         @self.sio.event
         async def get_dataset_info(sid, data):
-
-            print(len(self.df))
 
             info = {
                 "total_samples": len(self.df),

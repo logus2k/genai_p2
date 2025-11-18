@@ -225,11 +225,6 @@ class FrontendApp {
 
 	loadRandomSample() {
 		const idx = Math.floor(Math.random() * this.totalSamples);
-
-
-        console.log("Total Samples: " + this.totalSamples);
-        console.log("Random value: " + idx);
-
 		document.getElementById("sampleIndex").value = idx;
 		this.loadSample();
 	}

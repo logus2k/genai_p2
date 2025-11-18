@@ -55,6 +55,16 @@ class Embedding3DRenderer {
 			data.sample_tsne_pos[2] * SCALE
 		);
 
+        // --- Center camera on the sample sphere ---
+        controls.target.copy(samplePos);
+
+        // Move camera backward along Z so the sample sphere is in front
+        const distance = samplePos.length() * 0.2 + 4;
+        camera.position.copy(samplePos.clone().add(new THREE.Vector3(0, 0, distance)));
+
+        // Apply updated control target
+        controls.update();        
+
 		const meshes = {};
 
 		const addSphere = (name, posArr, color) => {
@@ -82,9 +92,9 @@ class Embedding3DRenderer {
 		};
 
 		// Sample sphere
-		addSphere("sample", data.sample_tsne_pos, 0xff4444);
+		addSphere(data.actual_label, data.sample_tsne_pos, 0xff4444);
 
-		// Category spheres
+        // Category spheres
 		Object.entries(data.all_categories_tsne).forEach(([cat, pos]) => {
 			const isTop5 = top5Names.includes(cat);
 			const dom = cat.includes("(")
@@ -103,7 +113,7 @@ class Embedding3DRenderer {
 			if (!meshes[name]) return;
 
 			const lineGeo = new THREE.BufferGeometry().setFromPoints([
-				meshes["sample"].position,
+				meshes[data.actual_label].position,
 				meshes[name].position
 			]);
 
