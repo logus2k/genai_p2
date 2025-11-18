@@ -6,14 +6,18 @@ import uvicorn
 import pandas as pd
 from model_utils import ModelPredictor
 
+
 class WebServer:
     def __init__(self):
         self.app = FastAPI()
         self.sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
+
         self.df = pd.read_parquet("../data/arxiv_papers/train.parquet")
         self.predictor = ModelPredictor("../scibert_finetuned_model.pt")
+
         self._mount_routes()
         self._mount_socket_events()
+
         self.socket_app = socketio.ASGIApp(self.sio, other_asgi_app=self.app)
 
     def _mount_routes(self):
@@ -25,52 +29,31 @@ class WebServer:
                 return HTMLResponse(f.read())
 
     def _mount_socket_events(self):
-        @self.sio.event
-        async def connect(sid, environ):
-            pass
-
-        @self.sio.event
-        async def disconnect(sid):
-            pass
-
-        @self.sio.event
-        async def get_dataset_info(sid, data):
-            info = {
-                "total_samples": len(self.df),
-                "columns": list(self.df.columns)
-            }
-            await self.sio.emit("dataset_info", info, room=sid)
 
         @self.sio.event
         async def get_sample(sid, data):
             index = data.get("index", 0)
             sample = self.predictor.get_sample_by_index(self.df, index)
-            if sample:
-                await self.sio.emit("sample", sample, room=sid)
-            else:
-                await self.sio.emit("error", {"message": "Sample not found"}, room=sid)
+            await self.sio.emit("sample", sample, room=sid)
 
         @self.sio.event
         async def predict_sample(sid, data):
             index = data.get("index", 0)
             sample = self.predictor.get_sample_by_index(self.df, index)
 
-            if not sample:
-                await self.sio.emit("error", {"message": "Sample not found"}, room=sid)
-                return
-
             text = sample["text"]
             result = self.predictor.predict_with_embeddings(text)
 
             payload = {
                 "index": index,
-                "predictions": result["predictions"],
                 "actual_label": sample["actual_label"],
-                "sample_embedding": result["sample_embedding"],
-                "category_embeddings": result["category_embeddings"]   # <-- updated
+                "predictions": result["predictions"],
+                "sample_tsne_pos": result["sample_tsne_pos"],
+                "all_categories_tsne": result["all_categories_tsne"],
+                "domain_colors": result["domain_colors"]
             }
 
-            await self.sio.emit("prediction_result", payload, room=sid)
+            await self.sio.emit("tsne_result", payload, room=sid)
 
 
 if __name__ == "__main__":

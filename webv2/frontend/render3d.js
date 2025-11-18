@@ -1,5 +1,3 @@
-// render3d.js
-
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/OrbitControls.min.js";
 
@@ -26,134 +24,64 @@ class Embedding3DRenderer {
 		scene.background = new THREE.Color(0xffffff);
 
 		const controls = new OrbitControls(camera, renderer.domElement);
-
-		const normalize = v => {
-			const n = Math.sqrt(v.reduce((s, x) => s + x * x, 0));
-			return v.map(x => x / (n + 1e-9));
-		};
-
-		const cosineDistance = (a, b) => {
-			let dot = 0;
-			for (let i = 0; i < a.length; i++) dot += a[i] * b[i];
-			return 1 - dot;
-		};
-
-		const sampleVec = normalize(data.sample_embedding);
-
-		const allCats = Object.keys(data.category_embeddings).map(c => ({
-			name: c,
-			vector: normalize(data.category_embeddings[c])
-		}));
+		controls.enableDamping = true;
 
 		const top5Names = data.predictions.map(p => p.category);
 
-		const nodes = [];
+        window.addEventListener("resize", () => {
+            const width = this.container.clientWidth;
+            const height = this.container.clientHeight;
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        });
 
-		// sample (center)
-		nodes.push({
-			name: "__sample__",
-			label: data.actual_label,
-			vector: sampleVec,
-			type: "sample",
-			pos: new THREE.Vector3(0, 0, 0)
-		});
+        const samplePos = new THREE.Vector3(
+			...data.sample_tsne_pos
+		);
 
-		// all categories (top-5 + rest)
-		allCats.forEach(c => {
-			nodes.push({
-				name: c.name,
-				vector: c.vector,
-				type: top5Names.includes(c.name) ? "top5" : "other",
-				pos: new THREE.Vector3(
-					Math.random() * 2 - 1,
-					Math.random() * 2 - 1,
-					Math.random() * 2 - 1
-				)
-			});
-		});
+		const meshes = {};
 
-		const N = nodes.length;
-
-		// layout iterations
-		for (let iter = 0; iter < 150; iter++) {
-			for (let i = 1; i < N; i++) {
-				const anchor = nodes[0].pos;
-				const node = nodes[i];
-				const d = cosineDistance(nodes[0].vector, node.vector);
-				const desired = 0.5 + d * 3.0;
-
-				const delta = node.pos.clone().sub(anchor);
-				const dist = delta.length() + 1e-9;
-				const force = (dist - desired) * 0.03;
-
-				delta.normalize().multiplyScalar(force);
-				node.pos.sub(delta);
-			}
-		}
-
-		const sphereMeshes = {};
-		const top5Lines = [];
-
-		nodes.forEach(node => {
-			let geo, mat, mesh;
-
-			if (node.type === "sample") {
-				geo = new THREE.SphereGeometry(0.18, 32, 32);
-				mat = new THREE.MeshBasicMaterial({ color: 0xff4444 });
-			} else if (node.type === "top5") {
-				geo = new THREE.SphereGeometry(0.12, 20, 20);
-				mat = new THREE.MeshBasicMaterial({ color: 0x0088ff });
-			} else {
-				geo = new THREE.SphereGeometry(0.12, 20, 20);
-				mat = new THREE.MeshBasicMaterial({ color: 0x00aa00 });
-			}
-
-			mesh = new THREE.Mesh(geo, mat);
-			mesh.position.copy(node.pos);
+		const addSphere = (name, posArr, color) => {
+			const geo = new THREE.SphereGeometry(0.12, 20, 20);
+			const mat = new THREE.MeshBasicMaterial({ color });
+			const mesh = new THREE.Mesh(geo, mat);
+			mesh.position.copy(new THREE.Vector3(...posArr));
 			scene.add(mesh);
+			meshes[name] = mesh;
 
-			const labelText =
-				node.type === "sample"
-					? this.shortenName(node.label)
-					: this.shortenName(node.name);
-
-			const label = this.createBillboardLabel(labelText);
+			const label = this.createLabel(name);
 			label.position.copy(mesh.position);
 			label.position.y += 0.15;
 			scene.add(label);
+		};
 
-			sphereMeshes[node.name] = mesh;
+		addSphere("sample", data.sample_tsne_pos, 0xff4444);
+
+		Object.entries(data.all_categories_tsne).forEach(([cat, pos]) => {
+			const isTop5 = top5Names.includes(cat);
+			const dom = cat.includes("(")
+				? cat.split("(")[0].trim().split(" ")[0]
+				: "other";
+
+			const color = isTop5
+				? 0x0088ff
+				: (data.domain_colors[dom] || 0x00aa00);
+
+			addSphere(cat, pos, color);
 		});
 
-		// Connect sample → each top-5
-		const sampleMesh = sphereMeshes["__sample__"];
+		top5Names.forEach(name => {
+			if (!meshes[name]) return;
 
-		nodes.forEach(node => {
-			if (node.type !== "top5") return;
-
-			const endMesh = sphereMeshes[node.name];
-
-			const pts = [];
-			pts.push(sampleMesh.position.clone());
-			pts.push(endMesh.position.clone());
-
-			const geom = new THREE.BufferGeometry().setFromPoints(pts);
-
-			const line = new THREE.Line(
-				geom,
-				new THREE.LineBasicMaterial({
-					color: 0x000000,
-					linewidth: 1.4
-				})
-			);
-
+			const lineGeo = new THREE.BufferGeometry().setFromPoints([
+				meshes["sample"].position,
+				meshes[name].position
+			]);
+			const lineMat = new THREE.LineBasicMaterial({ color: 0x000000 });
+			const line = new THREE.Line(lineGeo, lineMat);
 			scene.add(line);
-			top5Lines.push(line);
 		});
-
-		// FIX: Orbit pivot centered on sample sphere
-		controls.target.copy(nodes[0].pos);
-		controls.update();
 
 		const animate = () => {
 			requestAnimationFrame(animate);
@@ -164,17 +92,11 @@ class Embedding3DRenderer {
 		animate();
 	}
 
-	shortenName(fullName) {
-		if (typeof fullName !== "string") return "";
-		const match = fullName.match(/\(([^)]+)\)\s*$/);
-		return match ? match[1] : fullName;
-	}
-
-	createBillboardLabel(text) {
+	createLabel(text) {
 		const canvas = document.createElement("canvas");
 		const ctx = canvas.getContext("2d");
 
-		const fontSize = 36;
+		const fontSize = 40;
 		ctx.font = fontSize + "px sans-serif";
 
 		const padding = 20;
