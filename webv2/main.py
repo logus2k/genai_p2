@@ -40,20 +40,25 @@ class WebServer:
         async def predict_sample(sid, data):
             index = data.get("index", 0)
             sample = self.predictor.get_sample_by_index(self.df, index)
-
             text = sample["text"]
             result = self.predictor.predict_with_embeddings(text)
 
-            payload = {
+            # 1) Predictions-only event
+            await self.sio.emit("prediction_result", {
                 "index": index,
-                "actual_label": sample["actual_label"],
+                "predictions": result["predictions"],
+                "actual_label": sample["actual_label"]
+            }, room=sid)
+
+            # 2) t-SNE + embedding points
+            await self.sio.emit("tsne_result", {
+                "index": index,
                 "predictions": result["predictions"],
                 "sample_tsne_pos": result["sample_tsne_pos"],
                 "all_categories_tsne": result["all_categories_tsne"],
                 "domain_colors": result["domain_colors"]
-            }
+            }, room=sid)
 
-            await self.sio.emit("tsne_result", payload, room=sid)
 
 
 if __name__ == "__main__":

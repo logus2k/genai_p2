@@ -8,6 +8,15 @@ class Embedding3DRenderer {
 	}
 
 	render(data) {
+
+		// -------------------------------------------------------------
+		// 1) SCALING FACTOR — static for now, slider-ready
+        // -------------------------------------------------------------
+		const DEFAULT_TSNE_SCALE = 0.10;  
+		const SCALE = DEFAULT_TSNE_SCALE;
+
+		// -------------------------------------------------------------
+
 		this.container.innerHTML = "";
 		const width = this.container.clientWidth;
 		const height = this.container.clientHeight;
@@ -28,25 +37,41 @@ class Embedding3DRenderer {
 
 		const top5Names = data.predictions.map(p => p.category);
 
-        window.addEventListener("resize", () => {
-            const width = this.container.clientWidth;
-            const height = this.container.clientHeight;
-            camera.aspect = width / height;
-            camera.updateProjectionMatrix();
-            renderer.setSize(width, height);
-        });
+		// auto-resize
+		window.addEventListener("resize", () => {
+			const width = this.container.clientWidth;
+			const height = this.container.clientHeight;
+			camera.aspect = width / height;
+			camera.updateProjectionMatrix();
+			renderer.setSize(width, height);
+		});
 
-        const samplePos = new THREE.Vector3(
-			...data.sample_tsne_pos
+		// -------------------------------------------------------------
+		// 2) Apply scaling for sample
+		// -------------------------------------------------------------
+		const samplePos = new THREE.Vector3(
+			data.sample_tsne_pos[0] * SCALE,
+			data.sample_tsne_pos[1] * SCALE,
+			data.sample_tsne_pos[2] * SCALE
 		);
 
 		const meshes = {};
 
 		const addSphere = (name, posArr, color) => {
+			// -------------------------------------------------------------
+			// 3) Scale positions for all spheres
+			// -------------------------------------------------------------
+			const scaled = [
+				posArr[0] * SCALE,
+				posArr[1] * SCALE,
+				posArr[2] * SCALE
+			];
+
 			const geo = new THREE.SphereGeometry(0.12, 20, 20);
 			const mat = new THREE.MeshBasicMaterial({ color });
 			const mesh = new THREE.Mesh(geo, mat);
-			mesh.position.copy(new THREE.Vector3(...posArr));
+
+			mesh.position.copy(new THREE.Vector3(...scaled));
 			scene.add(mesh);
 			meshes[name] = mesh;
 
@@ -56,8 +81,10 @@ class Embedding3DRenderer {
 			scene.add(label);
 		};
 
+		// Sample sphere
 		addSphere("sample", data.sample_tsne_pos, 0xff4444);
 
+		// Category spheres
 		Object.entries(data.all_categories_tsne).forEach(([cat, pos]) => {
 			const isTop5 = top5Names.includes(cat);
 			const dom = cat.includes("(")
@@ -71,6 +98,7 @@ class Embedding3DRenderer {
 			addSphere(cat, pos, color);
 		});
 
+		// Lines to top-5
 		top5Names.forEach(name => {
 			if (!meshes[name]) return;
 
@@ -78,6 +106,7 @@ class Embedding3DRenderer {
 				meshes["sample"].position,
 				meshes[name].position
 			]);
+
 			const lineMat = new THREE.LineBasicMaterial({ color: 0x000000 });
 			const line = new THREE.Line(lineGeo, lineMat);
 			scene.add(line);

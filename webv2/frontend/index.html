@@ -140,7 +140,7 @@
 						       background:white; padding:10px; border:1px solid #ddd;"></div>
 				</div>
 
-				<div id="predictions" style="display:none;">
+				<div id="predictions" style="display: block;">
 					<h3>Predictions</h3>
 					<div id="predictionList"></div>
 				</div>
@@ -199,9 +199,10 @@ class FrontendApp {
 
         this.socket.on("prediction_result", data => {
             this._displayPredictions(data);
-        });		
-        
-        this.socket.on("tsne_result", data => {
+        });
+
+		this.socket.on("tsne_result", data => {
+			this._displayPredictions(data);
 			renderEmbeddingGraph(data);
 		});
 
