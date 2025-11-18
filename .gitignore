@@ -17,3 +17,4 @@ best_*
 enhanced_classification_results.*
 report_*
 Scripts/
+scibert_finetuned_model.pt

@@ -1,48 +1,47 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
 import socketio
 import uvicorn
 import pandas as pd
-import asyncio
-
 from model_utils import ModelPredictor
 
 
 # ------------------------------------------------------------
-# Initialize FastAPI + Socket.IO
+# FastAPI app
 # ------------------------------------------------------------
-sio = socketio.AsyncServer(cors_allowed_origins="*")
 app = FastAPI()
 
+# Serve static frontend
 app.mount("/static", StaticFiles(directory="frontend"), name="static")
-
-setattr(app, "sio", sio)
 
 
 # ------------------------------------------------------------
-# Load model + dataset
+# Load dataset + model
 # ------------------------------------------------------------
 print("Loading dataset...")
 df = pd.read_parquet("../data/arxiv_papers/train.parquet")
 print(f"✓ Loaded dataset with {len(df)} rows")
 
 print("Loading model...")
-predictor = ModelPredictor("../best_model.pt")
+predictor = ModelPredictor("../scibert_finetuned_model.pt")
 
 
 # ------------------------------------------------------------
-# Serve main HTML frontend
+# HTTP route
 # ------------------------------------------------------------
 @app.get("/", response_class=HTMLResponse)
-async def root():
+async def index():
 	with open("frontend/index.html", "r", encoding="utf-8") as f:
 		return HTMLResponse(f.read())
 
 
 # ------------------------------------------------------------
-# Socket.IO Events
+# Socket.IO server (ASGI)
 # ------------------------------------------------------------
+sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
+
+
 @sio.event
 async def connect(sid, environ):
 	print(f"[+] Client connected: {sid}")
@@ -57,7 +56,7 @@ async def disconnect(sid):
 async def get_dataset_info(sid, data):
 	info = {
 		"total_samples": len(df),
-		"columns": list(df.columns),
+		"columns": list(df.columns)
 	}
 	await sio.emit("dataset_info", info, room=sid)
 
@@ -68,7 +67,7 @@ async def get_sample(sid, data):
 	sample = predictor.get_sample_by_index(df, index)
 
 	if sample:
-		await sio.emit("sample_data", sample, room=sid)
+		await sio.emit("sample", sample, room=sid)
 	else:
 		await sio.emit("error", {"message": "Sample not found"}, room=sid)
 
@@ -88,20 +87,21 @@ async def predict_sample(sid, data):
 	result = {
 		"index": index,
 		"predictions": predictions,
-		"actual_label": sample["actual_label"],
+		"actual_label": sample["actual_label"]
 	}
 
 	await sio.emit("prediction_result", result, room=sid)
 
 
+
 # ------------------------------------------------------------
-# Attach Socket.IO to FastAPI
+# Wrap FastAPI with Socket.IO ASGI app
 # ------------------------------------------------------------
-app.mount("/", socketio.ASGIApp(sio, other_asgi_app=app))
+socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
 
 # ------------------------------------------------------------
 # Run server
 # ------------------------------------------------------------
 if __name__ == "__main__":
-	uvicorn.run(app, host="0.0.0.0", port=6543)
+	uvicorn.run(socket_app, host="0.0.0.0", port=6543)

@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from transformers import AutoModel, AutoTokenizer
 from sklearn.preprocessing import LabelEncoder
 import numpy as np
+import pickle
 
 
 CONFIG = {
@@ -90,8 +91,8 @@ class ModelPredictor:
 
 		self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-		# Load categories (same order as training)
-		self.categories = self._build_category_list()
+		# Load label encoder + classes
+		self.label_encoder, self.categories = self._load_label_encoder()
 
 		# Label encoder
 		self.label_encoder = LabelEncoder()
@@ -123,7 +124,7 @@ class ModelPredictor:
 		print(f"✓ Model loaded on {self.device}")
 
 	# ------------------------------------------------------------
-	def predict_with_confidence(self, text: str, top_k: int = 3):
+	def predict_with_confidence(self, text: str, top_k: int = 5):
 		encoding = self.tokenizer(
 			text,
 			truncation=True,
@@ -155,190 +156,39 @@ class ModelPredictor:
 		return results
 
 	# ------------------------------------------------------------
-	def get_sample_by_index(self, df, index: int):
-		if index < 0 or index >= len(df):
-			return None
-
+	def get_sample_by_index(self, df, index):
 		row = df.iloc[index]
 
-		text = ""
-		if "title" in row:
-			text += row["title"] + "\n"
-		if "abstract" in row:
-			text += row["abstract"]
+		# Build text
+		title = str(row.get("title", ""))
+		abstract = str(row.get("abstract", ""))
+		text = f"{title} {abstract}".strip()
 
-		actual_label = row.get("primary_subject", "Unknown")
+		# Label
+		actual_label = str(row.get("primary_subject", None))
 
-		metadata = {
-			col: row[col]
-			for col in df.columns
-			if col not in ["title", "abstract", "primary_subject"]
-		}
+		# PDF link (if DOI exists)
+		doi = row.get("doi", None)
+		pdf_url = None
+		if isinstance(doi, str) and "arXiv" in doi:
+			_, pdf_url = arxiv_pdf_link_from_doi(doi)
 
 		return {
-			"index": index,
+			"index": int(index),
 			"text": text,
 			"actual_label": actual_label,
-			"metadata": metadata,
+			"pdf_url": pdf_url
 		}
 
-	# ------------------------------------------------------------
-	def _build_category_list(self):
-		"""
-		Load the same category list used during training (shortened here for readability).
-		Replace this with your full list from training.
-		"""
-		from sklearn.preprocessing import LabelEncoder
+	
+	def _load_label_encoder(self):
+		# Load the encoder from training
+		with open("../scibert_label_encoder.pkl", "rb") as f:
+			label_encoder = pickle.load(f)
 
-		# Full exact list should be here.
-		# I will load the same list you provided earlier.
-		return [
-			"Computer Vision and Pattern Recognition (cs.CV)",
-			"Quantum Physics (quant-ph)",
-			"High Energy Physics - Phenomenology (hep-ph)",
-			"Machine Learning (cs.LG)",
-			"High Energy Physics - Theory (hep-th)",
-			"Mesoscale and Nanoscale Physics (cond-mat.mes-hall)",
-			"Materials Science (cond-mat.mtrl-sci)",
-			"Computation and Language (cs.CL)",
-			"General Relativity and Quantum Cosmology (gr-qc)",
-			"Analysis of PDEs (math.AP)",
-			"Astrophysics of Galaxies (astro-ph.GA)",
-			"Strongly Correlated Electrons (cond-mat.str-el)",
-			"Combinatorics (math.CO)",
-			"Solar and Stellar Astrophysics (astro-ph.SR)",
-			"High Energy Astrophysical Phenomena (astro-ph.HE)",
-			"Cosmology and Nongalactic Astrophysics (astro-ph.CO)",
-			"Statistical Mechanics (cond-mat.stat-mech)",
-			"Probability (math.PR)",
-			"Algebraic Geometry (math.AG)",
-			"Information Theory (cs.IT)",
-			"Optimization and Control (math.OC)",
-			"Nuclear Theory (nucl-th)",
-			"Number Theory (math.NT)",
-			"Superconductivity (cond-mat.supr-con)",
-			"Numerical Analysis (math.NA)",
-			"Robotics (cs.RO)",
-			"Differential Geometry (math.DG)",
-			"Soft Condensed Matter (cond-mat.soft)",
-			"Artificial Intelligence (cs.AI)",
-			"Optics (physics.optics)",
-			"Cryptography and Security (cs.CR)",
-			"Earth and Planetary Astrophysics (astro-ph.EP)",
-			"High Energy Physics - Experiment (hep-ex)",
-			"Dynamical Systems (math.DS)",
-			"Systems and Control (eess.SY)",
-			"Methodology (stat.ME)",
-			"Functional Analysis (math.FA)",
-			"Signal Processing (eess.SP)",
-			"Instrumentation and Methods for Astrophysics (astro-ph.IM)",
-			"Machine Learning (stat.ML)",
-			"Image and Video Processing (eess.IV)",
-			"Networking and Internet Architecture (cs.NI)",
-			"High Energy Physics - Lattice (hep-lat)",
-			"Fluid Dynamics (physics.flu-dyn)",
-			"Software Engineering (cs.SE)",
-			"Data Structures and Algorithms (cs.DS)",
-			"Geometric Topology (math.GT)",
-			"Representation Theory (math.RT)",
-			"Classical Analysis and ODEs (math.CA)",
-			"Statistics Theory (math.ST)",
-			"Human-Computer Interaction (cs.HC)",
-			"Distributed, Parallel, and Cluster Computing (cs.DC)",
-			"Group Theory (math.GR)",
-			"Quantum Gases (cond-mat.quant-gas)",
-			"Computers and Society (cs.CY)",
-			"Instrumentation and Detectors (physics.ins-det)",
-			"Information Retrieval (cs.IR)",
-			"Nuclear Experiment (nucl-ex)",
-			"Disordered Systems and Neural Networks (cond-mat.dis-nn)",
-			"Physics and Society (physics.soc-ph)",
-			"Atomic Physics (physics.atom-ph)",
-			"Rings and Algebras (math.RA)",
-			"Complex Variables (math.CV)",
-			"Social and Information Networks (cs.SI)",
-			"Chemical Physics (physics.chem-ph)",
-			"Logic in Computer Science (cs.LO)",
-			"Quantum Algebra (math.QA)",
-			"Plasma Physics (physics.plasm-ph)",
-			"Logic (math.LO)",
-			"Applications (stat.AP)",
-			"Algebraic Topology (math.AT)",
-			"Applied Physics (physics.app-ph)",
-			"Commutative Algebra (math.AC)",
-			"Sound (cs.SD)",
-			"Chaotic Dynamics (nlin.CD)",
-			"Operator Algebras (math.OA)",
-			"Computer Science and Game Theory (cs.GT)",
-			"General Physics (physics.gen-ph)",
-			"Populations and Evolution (q-bio.PE)",
-			"Audio and Speech Processing (eess.AS)",
-			"Neural and Evolutionary Computing (cs.NE)",
-			"Computational Physics (physics.comp-ph)",
-			"Neurons and Cognition (q-bio.NC)",
-			"Other Condensed Matter (cond-mat.other)",
-			"Databases (cs.DB)",
-			"Metric Geometry (math.MG)",
-			"Exactly Solvable and Integrable Systems (nlin.SI)",
-			"Biological Physics (physics.bio-ph)",
-			"Accelerator Physics (physics.acc-ph)",
-			"Quantitative Methods (q-bio.QM)",
-			"Computational Complexity (cs.CC)",
-			"Programming Languages (cs.PL)",
-			"Pattern Formation and Solitons (nlin.PS)",
-			"Symplectic Geometry (math.SG)",
-			"Spectral Theory (math.SP)",
-			"Discrete Mathematics (cs.DM)",
-			"Medical Physics (physics.med-ph)",
-			"Computational Engineering, Finance, and Science (cs.CE)",
-			"General Economics (econ.GN)",
-			"Computational Geometry (cs.CG)",
-			"Classical Physics (physics.class-ph)",
-			"Category Theory (math.CT)",
-			"Hardware Architecture (cs.AR)",
-			"General Mathematics (math.GM)",
-			"Computation (stat.CO)",
-			"Geophysics (physics.geo-ph)",
-			"Digital Libraries (cs.DL)",
-			"Atmospheric and Oceanic Physics (physics.ao-ph)",
-			"General Topology (math.GN)",
-			"Biomolecules (q-bio.BM)",
-			"Multiagent Systems (cs.MA)",
-			"Graphics (cs.GR)",
-			"Adaptation and Self-Organizing Systems (nlin.AO)",
-			"Econometrics (econ.EM)",
-			"History and Overview (math.HO)",
-			"Data Analysis, Statistics and Probability (physics.data-an)",
-			"Formal Languages and Automata Theory (cs.FL)",
-			"History and Philosophy of Physics (physics.hist-ph)",
-			"Physics Education (physics.ed-ph)",
-			"K-Theory and Homology (math.KT)",
-			"Multimedia (cs.MM)",
-			"Emerging Technologies (cs.ET)",
-			"Molecular Networks (q-bio.MN)",
-			"Theoretical Economics (econ.TH)",
-			"Statistical Finance (q-fin.ST)",
-			"Space Physics (physics.space-ph)",
-			"Other Computer Science (cs.OH)",
-			"Genomics (q-bio.GN)",
-			"Mathematical Finance (q-fin.MF)",
-			"General Finance (q-fin.GN)",
-			"Risk Management (q-fin.RM)",
-			"Computational Finance (q-fin.CP)",
-			"Symbolic Computation (cs.SC)",
-			"Portfolio Management (q-fin.PM)",
-			"Performance (cs.PF)",
-			"Popular Physics (physics.pop-ph)",
-			"Tissues and Organs (q-bio.TO)",
-			"Pricing of Securities (q-fin.PR)",
-			"Trading and Market Microstructure (q-fin.TR)",
-			"Atomic and Molecular Clusters (physics.atm-clus)",
-			"Mathematical Software (cs.MS)",
-			"Cell Behavior (q-bio.CB)",
-			"Other Quantitative Biology (q-bio.OT)",
-			"Other Statistics (stat.OT)",
-			"Cellular Automata and Lattice Gases (nlin.CG)",
-			"Subcellular Processes (q-bio.SC)",
-			"Operating Systems (cs.OS)",
-			"General Literature (cs.GL)",
-		]
+		classes = label_encoder.classes_
+
+		print(f"[INFO] Loaded {len(classes)} classes from label_encoder.pkl")
+
+		return label_encoder, classes
+
