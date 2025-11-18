@@ -102,6 +102,12 @@ class ModelPredictor:
         with torch.no_grad():
             emb = self.model(input_ids, attention_mask, return_embeddings=True)
         return emb[0].cpu().numpy()
+    
+    def get_all_category_embeddings(self):
+        emb_map = {}
+        for cat in self.categories:
+            emb_map[cat] = self._embed_text(cat).tolist()
+        return emb_map    
 
     def predict_with_embeddings(self, text: str, top_k: int = 5):
         encoding = self.tokenizer(
@@ -122,9 +128,7 @@ class ModelPredictor:
         top_probs, top_idx = torch.topk(probs[0], top_k)
 
         predictions = []
-        label_embs = {}
-
-        emb_list = sample_emb[0].cpu().numpy().tolist()
+        sample_vec = sample_emb[0].cpu().numpy().tolist()
 
         for prob, idx in zip(top_probs, top_idx):
             label = self.encoder.inverse_transform([idx.item()])[0]
@@ -133,12 +137,11 @@ class ModelPredictor:
                 "domain": subject_to_domain(label),
                 "confidence": float(prob.item())
             })
-            label_embs[label] = emb_list
 
         return {
             "predictions": predictions,
-            "sample_embedding": emb_list,
-            "prediction_embeddings": label_embs
+            "sample_embedding": sample_vec,
+            "category_embeddings": self.get_all_category_embeddings()
         }
 
     def get_sample_by_index(self, df, index):
