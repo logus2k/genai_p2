@@ -91,8 +91,18 @@ class Embedding3DRenderer {
 			scene.add(label);
 		};
 
-		// Sample sphere
-		addSphere(data.actual_label, data.sample_tsne_pos, 0xff4444);
+		// Sample sphere - stored with special key to avoid collision
+		const sampleGeo = new THREE.SphereGeometry(0.12, 20, 20);
+		const sampleMat = new THREE.MeshBasicMaterial({ color: 0xff4444 });
+		const sampleMesh = new THREE.Mesh(sampleGeo, sampleMat);
+		sampleMesh.position.copy(samplePos);
+		scene.add(sampleMesh);
+		meshes["__SAMPLE__"] = sampleMesh;
+
+		const sampleLabel = this.createLabel("SAMPLE: " + data.actual_label);
+		sampleLabel.position.copy(sampleMesh.position);
+		sampleLabel.position.y += 0.15;
+		scene.add(sampleLabel);
 
         // Category spheres
 		Object.entries(data.all_categories_tsne).forEach(([cat, pos]) => {
@@ -113,7 +123,7 @@ class Embedding3DRenderer {
 			if (!meshes[name]) return;
 
 			const lineGeo = new THREE.BufferGeometry().setFromPoints([
-				meshes[data.actual_label].position,
+				meshes["__SAMPLE__"].position,
 				meshes[name].position
 			]);
 
