@@ -50,13 +50,15 @@ class WebServer:
                 "actual_label": sample["actual_label"]
             }, room=sid)
 
-            # 2) t-SNE + embedding points
+            # 2) t-SNE + embedding points + SOM data
             await self.sio.emit("tsne_result", {
                 "index": index,
                 "actual_label": sample["actual_label"],
                 "predictions": result["predictions"],
                 "sample_tsne_pos": result["sample_tsne_pos"],
                 "all_categories_tsne": result["all_categories_tsne"],
+                "sample_som_pos": result["sample_som_pos"],
+                "all_categories_som": result["all_categories_som"],
                 "domain_colors": result["domain_colors"]
             }, room=sid)
 

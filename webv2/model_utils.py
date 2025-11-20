@@ -89,6 +89,9 @@ class ModelPredictor:
             self.tsne_positions
         ) = self._precompute_category_tsne()
 
+        # Load SOM if available
+        self.som_data = self._load_som()        
+
     def _load_label_encoder(self):
         with open("../scibert_label_encoder.pkl", "rb") as f:
             encoder = pickle.load(f)
@@ -171,6 +174,7 @@ class ModelPredictor:
                 "confidence": float(prob.item())
             })
 
+        # t-SNE computation
         from sklearn.manifold import TSNE
         all_cat_mat = np.vstack(list(self.category_embeddings.values()))
         combined = np.vstack([sample_vec, all_cat_mat])
@@ -185,11 +189,24 @@ class ModelPredictor:
         for i, c in enumerate(self.categories):
             all_cat_pos[c] = combined_pos[i + offset].tolist()
 
+        # SOM computation
+        som_sample_pos = None
+        som_category_pos = None
+        if self.som_data is not None:
+            som_sample_pos = self._get_som_position(sample_vec)
+            som_category_pos = self.som_data['category_positions_3d']
+        else:
+            print("DEBUG: SOM data is None - skipping SOM computation")            
+
         return {
             "predictions": preds,
             "sample_embedding": sample_vec.tolist(),
+            # t-SNE data
             "sample_tsne_pos": sample_pos,
             "all_categories_tsne": all_cat_pos,
+            # SOM data
+            "sample_som_pos": som_sample_pos,
+            "all_categories_som": som_category_pos,
             "domain_colors": self.domain_colors
         }
     
@@ -217,3 +234,33 @@ class ModelPredictor:
             "actual_label": actual_label,
             "pdf_url": pdf_url
         }
+    
+    def _load_som(self):
+        """Load pre-trained SOM model if available."""
+        try:
+            with open("../som_3d_model.pkl", "rb") as f:
+                som_data = pickle.load(f)
+            print("SOM model loaded successfully")
+            return som_data
+        except FileNotFoundError:
+            print("No SOM model found - SOM visualization will be unavailable")
+            return None
+
+    def _get_som_position(self, sample_embedding):
+        """Map sample embedding to SOM grid position."""
+        if self.som_data is None:
+            return None
+        
+        som = self.som_data['som']
+        grid_x, grid_y, grid_z = self.som_data['grid_dims']
+        
+        # Find BMU (Best Matching Unit)
+        bmu = som.winner(sample_embedding)
+        row, col = bmu
+        
+        # Convert to 3D coordinates
+        x = row // grid_y
+        y = row % grid_y
+        z = col
+        
+        return [float(x), float(y), float(z)]

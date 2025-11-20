@@ -1,11 +1,10 @@
-// app.js
-
-
 class FrontendApp {
 
 	constructor() {
 		this.socket = io("/", { path: "/scipredictor/socket.io/" });
 		this.totalSamples = 0;
+		this.visualizationMode = 'tsne'; // 'tsne', 'som', or 'som_heatmap'
+		this.currentData = null;
 		this._bindEvents();
 		this._bindSocket();
 	}
@@ -13,6 +12,55 @@ class FrontendApp {
 	_bindEvents() {
 		document.getElementById("btnSearch").onclick = () => this.loadSample();
 		document.getElementById("btnRandom").onclick = () => this.loadRandomSample();
+		document.getElementById("btnVizTsne").onclick = () => this.setVisualization('tsne');
+		document.getElementById("btnVizSom").onclick = () => this.setVisualization('som');
+		document.getElementById("btnVizHeat").onclick = () => this.setVisualization('som_heatmap');
+	}
+
+	setVisualization(mode) {
+		if (!this.currentData) return;
+
+		// Check SOM data availability
+		if ((mode === 'som' || mode === 'som_heatmap') && !this.currentData.sample_som_pos) {
+			alert("SOM visualization not available. Please train the SOM model first.");
+			return;
+		}
+
+		this.visualizationMode = mode;
+
+		// Update button states
+		document.getElementById("btnVizTsne").classList.toggle('active', mode === 'tsne');
+		document.getElementById("btnVizSom").classList.toggle('active', mode === 'som');
+		document.getElementById("btnVizHeat").classList.toggle('active', mode === 'som_heatmap');
+
+		this._renderVisualization();
+	}
+
+	_renderVisualization() {
+		if (!this.currentData) return;
+
+		const vizData = {
+			predictions: this.currentData.predictions,
+			actual_label: this.currentData.actual_label,
+			domain_colors: this.currentData.domain_colors
+		};
+
+		if (this.visualizationMode === 'tsne') {
+			vizData.sample_tsne_pos = this.currentData.sample_tsne_pos;
+			vizData.all_categories_tsne = this.currentData.all_categories_tsne;
+			renderEmbeddingGraph(vizData);
+		} else if (this.visualizationMode === 'som') {
+			vizData.sample_som_pos = this.currentData.sample_som_pos;
+			vizData.all_categories_som = this.currentData.all_categories_som;
+			// Reuse embedding graph renderer with SOM data
+			vizData.sample_tsne_pos = this.currentData.sample_som_pos;
+			vizData.all_categories_tsne = this.currentData.all_categories_som;
+			renderEmbeddingGraph(vizData);
+		} else if (this.visualizationMode === 'som_heatmap') {
+			vizData.sample_som_pos = this.currentData.sample_som_pos;
+			vizData.all_categories_som = this.currentData.all_categories_som;
+			renderSOMHeatmap(vizData);
+		}
 	}
 
 	_bindSocket() {
@@ -22,8 +70,7 @@ class FrontendApp {
 			this.totalSamples = data.total_samples;
 			document.getElementById("datasetInfo").textContent =
 				`Total samples: ${data.total_samples}`;
-			
-			// Load random sample after dataset info is received
+
 			this.loadRandomSample();
 		});
 
@@ -40,13 +87,14 @@ class FrontendApp {
 			}
 		});
 
-        this.socket.on("prediction_result", data => {
-            this._displayPredictions(data);
-        });
+		this.socket.on("prediction_result", data => {
+			this._displayPredictions(data);
+		});
 
 		this.socket.on("tsne_result", data => {
 			this._displayPredictions(data);
-			renderEmbeddingGraph(data);
+			this.currentData = data;
+			this._renderVisualization();
 		});
 
 		this.socket.on("error", data => {

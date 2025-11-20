@@ -62,12 +62,49 @@ body {
     color:#ffffff;
     cursor:pointer;
     font-weight:bold;
+    transition: background 0.2s ease;
 }
 
 .top-bar-left .controls button:hover {
-    background:rgb(90, 126, 255);;
+    background:rgb(90, 126, 255);
 }
 
+.viz-controls {
+    display:flex;
+    gap:4px;
+    align-items:center;
+}
+
+.viz-controls .viz-btn {
+    padding:6px 12px;
+    border:2px solid rgb(63, 105, 255);
+    border-radius:4px;
+    background:rgb(63, 105, 255);
+    color:#ffffff;
+    cursor:pointer;
+    font-weight:bold;
+    font-size:12px;
+    transition: all 0.15s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.viz-controls .viz-btn:hover {
+    background:rgb(90, 126, 255);
+    border-color:rgb(90, 126, 255);
+}
+
+.viz-controls .viz-btn:active {
+    transform: translateY(2px);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.3), inset 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.viz-controls .viz-btn.active {
+    background:#ffffff;
+    color:#ff0000;
+    border-color:#888;
+    border-width:2px;
+    box-shadow: rgb(204, 219, 232) 3px 3px 6px 0px inset, rgba(255, 255, 255, 0.5) -3px -3px 6px 1px inset;
+}
 
 /* CONTENT AREA --------------------------------------------------- */
 .content-wrapper {

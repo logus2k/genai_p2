@@ -7,13 +7,24 @@ class Embedding3DRenderer {
 		this.container = document.getElementById(containerId);
 	}
 
+	_detectSOMData(data) {
+		// SOM data has much smaller coordinate ranges (0-6) vs t-SNE (-50 to 50)
+		const pos = data.sample_tsne_pos;
+		const maxCoord = Math.max(Math.abs(pos[0]), Math.abs(pos[1]), Math.abs(pos[2]));
+		return maxCoord < 10;  // If coordinates are small, it's SOM data
+	}	
+
 	render(data) {
 
 		// -------------------------------------------------------------
 		// 1) SCALING FACTOR — static for now, slider-ready
         // -------------------------------------------------------------
 		const DEFAULT_TSNE_SCALE = 0.10;  
-		const SCALE = DEFAULT_TSNE_SCALE;
+		const DEFAULT_SOM_SCALE = 3.0;
+
+		// Detect which visualization mode based on data range
+		const isSOM = this._detectSOMData(data);
+		const SCALE = isSOM ? DEFAULT_SOM_SCALE : DEFAULT_TSNE_SCALE;		
 
 		// -------------------------------------------------------------
 
@@ -40,38 +51,66 @@ class Embedding3DRenderer {
 
 		const top5Names = data.predictions.map(p => p.category);
 
-		// auto-resize
-		window.addEventListener("resize", () => {
-			const width = this.container.clientWidth;
-			const height = this.container.clientHeight;
-			camera.aspect = width / height;
-			camera.updateProjectionMatrix();
-			renderer.setSize(width, height);
-		});
-
-		// -------------------------------------------------------------
-		// 2) Apply scaling for sample
-		// -------------------------------------------------------------
+		// Apply scaling for sample
 		const samplePos = new THREE.Vector3(
 			data.sample_tsne_pos[0] * SCALE,
 			data.sample_tsne_pos[1] * SCALE,
 			data.sample_tsne_pos[2] * SCALE
 		);
 
-		// --- Set initial camera position to view the sample, but allow free navigation ---
-		const distance = samplePos.length() * 0.2 + 4;
-		camera.position.copy(samplePos.clone().add(new THREE.Vector3(0, 0, distance)));
+		// --- Calculate bounding box of all category positions ---
+		let minX = Infinity, maxX = -Infinity;
+		let minY = Infinity, maxY = -Infinity;
+		let minZ = Infinity, maxZ = -Infinity;
 
-		// Set target to origin for free navigation
-		controls.target.set(0, 0, 0);
-		controls.update();       
+		Object.values(data.all_categories_tsne).forEach(pos => {
+			const scaled = [pos[0] * SCALE, pos[1] * SCALE, pos[2] * SCALE];
+			minX = Math.min(minX, scaled[0]);
+			maxX = Math.max(maxX, scaled[0]);
+			minY = Math.min(minY, scaled[1]);
+			maxY = Math.max(maxY, scaled[1]);
+			minZ = Math.min(minZ, scaled[2]);
+			maxZ = Math.max(maxZ, scaled[2]);
+		});
+
+		const centerX = (minX + maxX) / 2;
+		const centerY = (minY + maxY) / 2;
+		const centerZ = (minZ + maxZ) / 2;
+		const sizeX = maxX - minX;
+		const sizeY = maxY - minY;
+		const sizeZ = maxZ - minZ;
+		const maxSize = Math.max(sizeX, sizeY, sizeZ);
+
+		// Helper function to update camera for current container size
+		const updateCameraForSize = () => {
+			const w = this.container.clientWidth;
+			const h = this.container.clientHeight;
+			camera.aspect = w / h;
+			camera.updateProjectionMatrix();
+			renderer.setSize(w, h);
+
+			// Recalculate camera position based on current container size
+			const paddingFactor = isSOM ? 0.7 : 0.3;
+			const padding = maxSize * paddingFactor;
+			
+			camera.position.set(
+				centerX + padding,
+				centerY + padding,
+				centerZ + padding
+			);
+			controls.target.set(centerX, centerY, centerZ);
+			controls.update();
+		};
+
+		// Initial setup
+		updateCameraForSize();
+
+		// auto-resize with responsive camera positioning
+		window.addEventListener("resize", updateCameraForSize);       
 
 		const meshes = {};
 
 		const addSphere = (name, posArr, color) => {
-			// -------------------------------------------------------------
-			// 3) Scale positions for all spheres
-			// -------------------------------------------------------------
 			const scaled = [
 				posArr[0] * SCALE,
 				posArr[1] * SCALE,
@@ -84,7 +123,11 @@ class Embedding3DRenderer {
 
 			mesh.position.copy(new THREE.Vector3(...scaled));
 			scene.add(mesh);
-			meshes[name] = mesh;
+			
+			// Store mesh - handle overlapping positions
+			if (!meshes[name]) {
+				meshes[name] = mesh;
+			}
 
 			const label = this.createLabel(name);
 			label.position.copy(mesh.position);
