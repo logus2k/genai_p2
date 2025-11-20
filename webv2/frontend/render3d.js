@@ -22,7 +22,7 @@ class Embedding3DRenderer {
 		const height = this.container.clientHeight;
 
 		const scene = new THREE.Scene();
-		const camera = new THREE.PerspectiveCamera(55, width / height, 0.1, 1000);
+		const camera = new THREE.PerspectiveCamera(55, width / height, 0.01, 1000);
 		camera.position.set(0, 0, 6);
 
 		const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -33,6 +33,9 @@ class Embedding3DRenderer {
 		scene.background = new THREE.Color(0xffffff);
 
 		const controls = new OrbitControls(camera, renderer.domElement);
+		controls.enableDamping = true;
+		controls.minDistance = 0.1;
+		controls.maxDistance = 100;		
 		controls.enableDamping = true;
 
 		const top5Names = data.predictions.map(p => p.category);
@@ -55,15 +58,13 @@ class Embedding3DRenderer {
 			data.sample_tsne_pos[2] * SCALE
 		);
 
-        // --- Center camera on the sample sphere ---
-        controls.target.copy(samplePos);
+		// --- Set initial camera position to view the sample, but allow free navigation ---
+		const distance = samplePos.length() * 0.2 + 4;
+		camera.position.copy(samplePos.clone().add(new THREE.Vector3(0, 0, distance)));
 
-        // Move camera backward along Z so the sample sphere is in front
-        const distance = samplePos.length() * 0.2 + 4;
-        camera.position.copy(samplePos.clone().add(new THREE.Vector3(0, 0, distance)));
-
-        // Apply updated control target
-        controls.update();        
+		// Set target to origin for free navigation
+		controls.target.set(0, 0, 0);
+		controls.update();       
 
 		const meshes = {};
 

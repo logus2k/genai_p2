@@ -21,8 +21,10 @@ class FrontendApp {
 		this.socket.on("dataset_info", data => {
 			this.totalSamples = data.total_samples;
 			document.getElementById("datasetInfo").textContent =
-				// `Total samples: ${data.total_samples} | Columns: ${data.columns.join(", ")}`;
 				`Total samples: ${data.total_samples}`;
+			
+			// Load random sample after dataset info is received
+			this.loadRandomSample();
 		});
 
 		this.socket.on("sample", data => {
@@ -99,5 +101,4 @@ class FrontendApp {
 
 window.onload = () => {
 	window.app = new FrontendApp();
-    app.loadSample();
 };
