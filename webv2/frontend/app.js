@@ -135,13 +135,32 @@ class FrontendApp {
 		const list = document.getElementById("predictionList");
 		list.innerHTML = "";
 
+		const actualLabel = data.actual_label;
+		let matchFound = false;
+
 		data.predictions.forEach((p, i) => {
 			const div = document.createElement("div");
 			div.className = "prediction-item";
+			const isMatch = p.category === actualLabel;
+			
+			if (isMatch) {
+				matchFound = true;
+				div.className += " prediction-match";
+			}
+
 			div.innerHTML = `<strong>${i + 1}. [${p.domain}] ${p.category}</strong>:
-				<span style="color:#007bff">${p.confidence.toFixed(4)}</span>`;
+				<span style="color:#007bff">${p.confidence.toFixed(4)}</span>
+				${isMatch ? '<span style="margin-left:8px; color:#00aa00; font-weight:bold;">✓ MATCH</span>' : ''}`;
 			list.appendChild(div);
 		});
+
+		// Add indicator if no match found in top 5
+		if (!matchFound) {
+			const noMatchDiv = document.createElement("div");
+			noMatchDiv.style.cssText = "margin-top:10px; padding:8px; background:#ffe6e6; color:#cc0000; border-radius:4px; font-size:12px;";
+			noMatchDiv.textContent = `Actual label "${actualLabel}" not in top 5 predictions`;
+			list.appendChild(noMatchDiv);
+		}
 
 		document.getElementById("predictions").style.display = "block";
 	}

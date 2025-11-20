@@ -25,12 +25,12 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0px 50px 0px 20px;
+    padding: 0px 5px 0px 20px;
 }
 
 .top-bar-left h1 {
     margin:0;
-    font-size:20px;
+    font-size:18px;
     color:white;
     white-space:nowrap;
     flex-shrink:0;
@@ -38,24 +38,27 @@ body {
 
 .top-bar-left .controls {
     display:flex;
-    gap:10px;
+    gap:8px;
     align-items:center;
+    font-size:13px;
 }
 
 .top-bar-left .controls label {
     color:white;
     white-space:nowrap;
+    font-size:13px;
 }
 
 .top-bar-left .controls input {
-    padding:6px 10px;
+    padding:4px 8px;
     border:1px solid #ddd;
     border-radius:4px;
-    width:80px;
+    width:70px;
+    font-size:12px;
 }
 
 .top-bar-left .controls button {
-    padding:6px 12px;
+    padding:5px 10px;
     border:none;
     border-radius:4px;
     background:rgb(63, 105, 255);
@@ -63,6 +66,7 @@ body {
     cursor:pointer;
     font-weight:bold;
     transition: background 0.2s ease;
+    font-size:12px;
 }
 
 .top-bar-left .controls button:hover {
@@ -76,14 +80,14 @@ body {
 }
 
 .viz-controls .viz-btn {
-    padding:6px 12px;
+    padding:5px 10px;
     border:2px solid rgb(63, 105, 255);
     border-radius:4px;
     background:rgb(63, 105, 255);
     color:#ffffff;
     cursor:pointer;
     font-weight:bold;
-    font-size:12px;
+    font-size:11px;
     transition: all 0.15s ease;
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
@@ -177,6 +181,12 @@ body {
     margin: 3px;
     border: 1px solid #eee;
     border-radius: 6px;
+}
+
+.prediction-item.prediction-match {
+    background-color: #e8f5e9;
+    border: 1px solid #4caf50;
+    border-width: 2px;
 }
 
 .error { color:#d32f2f; background:#ffebee; padding:10px; border-radius:4px; display:none; }
