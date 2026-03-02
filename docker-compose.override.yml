@@ -1,0 +1,16 @@
+# GPU override — auto-merged by Docker Compose when this file is present.
+#
+# On GPU hosts:  keep this file alongside docker-compose.yml
+#                Requires: nvidia-container-toolkit installed on the host
+#
+# On CPU hosts:  remove or rename this file; docker-compose.yml is sufficient.
+
+services:
+  scipredictor:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

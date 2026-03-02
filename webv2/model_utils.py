@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoConfig, AutoModel, AutoTokenizer
 from sklearn.manifold import TSNE
 from sklearn.preprocessing import LabelEncoder
 import numpy as np
@@ -17,7 +17,8 @@ CONFIG = {
 class EnhancedClassifier(nn.Module):
     def __init__(self, model_name, num_classes, dropout_rate=0.3):
         super().__init__()
-        self.bert = AutoModel.from_pretrained(model_name)
+        config = AutoConfig.from_pretrained(model_name)
+        self.bert = AutoModel.from_config(config)
         self.hidden_size = self.bert.config.hidden_size
         self.pre_classifier = nn.Linear(self.hidden_size, self.hidden_size)
         self.dropout = nn.Dropout(dropout_rate)

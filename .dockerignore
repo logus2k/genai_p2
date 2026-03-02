@@ -1,0 +1,52 @@
+# --- Large model files not needed in image ---
+best_model.pt
+models/
+label_encoder.pkl
+
+# --- Model files that ARE copied (negation keeps them in build context) ---
+# scibert_finetuned_model.pt  -> included
+# scibert_label_encoder.pkl   -> included
+# som_3d_model.pkl            -> included
+# data/                       -> included
+
+# --- Python virtual environment ---
+bin/
+lib/
+lib64/
+include/
+share/
+etc/
+pyvenv.cfg
+
+# --- Python bytecode ---
+__pycache__/
+*.pyc
+*.pyo
+
+# --- Notebooks and reports ---
+*.ipynb
+*.docx
+reports/
+old_files/
+proposal/
+report_notes.md
+
+# --- Experiment results ---
+results_*/
+classification_results.json
+enhanced_classification_results.json
+model_comparison.txt
+
+# --- VCS ---
+.git/
+.gitignore
+.gitattributes
+
+# --- Other web version (webv2/ is copied explicitly) ---
+web/
+
+# --- Misc ---
+notebook_to_report.py
+README.md
+LICENSE.md
+.vscode/

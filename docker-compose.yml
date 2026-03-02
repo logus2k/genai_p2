@@ -1,0 +1,14 @@
+services:
+  scipredictor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: scipredictor:latest
+    container_name: scipredictor
+    restart: unless-stopped
+    ports:
+      - "6543:6543"
+    environment:
+      HF_HOME: /app/hf_cache
+      TRANSFORMERS_OFFLINE: "1"
+      HF_HUB_DISABLE_TELEMETRY: "1"
