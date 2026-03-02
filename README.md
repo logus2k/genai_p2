@@ -41,8 +41,8 @@ The easiest way to run SciPredictor is via the pre-built Docker image, which inc
 docker compose up -d
 
 # Or pull the image directly
-docker pull <your-username>/scipredictor
-docker run -p 6543:6543 <your-username>/scipredictor
+docker pull logus2k/scipredictor
+docker run -p 6543:6543 logus2k/scipredictor
 ```
 
 Then open http://localhost:6543 in your browser.
